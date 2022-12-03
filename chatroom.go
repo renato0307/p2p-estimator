@@ -34,6 +34,9 @@ type ChatMessageType string
 const (
 	Heartbeat      ChatMessageType = "heartbeat"
 	SetDescription ChatMessageType = "set-description"
+	SendVote       ChatMessageType = "send-vote"
+	ClearVotes     ChatMessageType = "clear-votes"
+	ShowVotes      ChatMessageType = "show-votes"
 )
 
 // ChatMessage gets converted to/from JSON and sent in the body of pubsub messages.

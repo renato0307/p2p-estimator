@@ -1,7 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
@@ -12,6 +15,7 @@ import (
 type participant struct {
 	id              peer.ID
 	nick            string
+	currentVote     string
 	heartbeatMisses int
 }
 
@@ -35,8 +39,7 @@ func NewTable() table.Model {
 		BorderBottom(true).
 		Bold(false)
 	s.Selected = s.Selected.
-		Foreground(lipgloss.Color("229")).
-		Background(lipgloss.Color("57")).
+		Foreground(lipgloss.NoColor{}).
 		Bold(false)
 	t.SetStyles(s)
 
@@ -45,34 +48,34 @@ func NewTable() table.Model {
 
 func (m *model) updateParticipants(msg *ChatMessage) {
 	sid := shortID(peer.ID(msg.SenderID))
-	m.peers[sid] = participant{
+	m.participants[sid] = participant{
 		id:              peer.ID(msg.SenderID),
 		nick:            msg.SenderNick,
 		heartbeatMisses: 0,
+		currentVote:     m.participants[sid].currentVote,
 	}
 }
 
 func (m *model) refreshPeers() {
 	rows := []table.Row{}
-	for k, p := range m.peers {
+	for k, p := range m.participants {
 		if p.id == m.cr.self {
 			continue
 		}
-
-		if p.heartbeatMisses > 5 {
-			delete(m.peers, k)
+		if p.heartbeatMisses > 15 {
+			delete(m.participants, k)
 			continue
 		}
-		rows = append(rows, table.Row{p.nick, "-"})
+		rows = append(rows, table.Row{p.nick, m.estimationStatus(&p)})
 		p.heartbeatMisses++
-		m.peers[k] = p
+		m.participants[k] = p
 	}
 
 	sort.Slice(rows, func(i, j int) bool {
 		return rows[i][0] < rows[j][0]
 	})
 
-	self := table.Row{m.peers[shortID(m.cr.self)].nick, "-"}
+	self := table.Row{m.self().nick, m.estimationStatus(m.self())}
 	rowSelf := []table.Row{self}
 	rows = append(rowSelf, rows...)
 	m.table.SetRows(rows)
@@ -80,8 +83,31 @@ func (m *model) refreshPeers() {
 
 func (m *model) updateParticipantsTable(msg tea.Msg) (cmd tea.Cmd) {
 	m.refreshPeers()
-	m.table.SetHeight(len(m.peers))
+	m.table.SetHeight(len(m.participants))
 	m.table, cmd = m.table.Update(msg)
 
 	return
+}
+
+func (m *model) estimationStatus(p *participant) string {
+	if p.currentVote == "" {
+		return "-"
+	}
+
+	if !m.showVotes {
+		return "✅"
+	}
+
+	val, err := parseVote(p.currentVote)
+	if err != nil {
+		return "-"
+	}
+
+	return fmt.Sprintf("%d", val)
+}
+
+func parseVote(currVote string) (int, error) {
+	vote := strings.Split(currVote, " ")[0]
+	val, err := strconv.Atoi(vote)
+	return val, err
 }

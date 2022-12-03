@@ -34,7 +34,6 @@ func NewMenu() list.Model {
 		item(OPTION_SHOW_VOTES),
 		item(OPTION_UPDATE_JIRA),
 		item("0 points"),
-		item("1/2 point"),
 		item("1 point"),
 		item("2 points"),
 		item("3 points"),
@@ -80,8 +79,32 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 	fmt.Fprint(w, fn(str))
 }
 
+func (m *model) handleMenuEvents() {
+	switch m.readChoice() {
+	case OPTION_SET_DESCRIPTION:
+		m.editDescription = true
+		m.description.Focus()
+	case OPTION_CLEAR_VOTES:
+		m.clearVotes(true)
+	case OPTION_SHOW_VOTES:
+		m.displayVotes(true)
+	case OPTION_UPDATE_JIRA:
+	default:
+		m.updateVote(m.cr.self, m.choice, true)
+	}
+}
+
 func (m *model) updateMenu(msg tea.Msg) tea.Cmd {
 	var cmdList tea.Cmd
 	m.menu, cmdList = m.menu.Update(msg)
 	return cmdList
+}
+
+func (m *model) readChoice() string {
+	i, ok := m.menu.SelectedItem().(item)
+	if ok {
+		m.choice = string(i)
+	}
+
+	return m.choice
 }

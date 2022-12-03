@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -16,8 +17,8 @@ var baseStyle = lipgloss.NewStyle().
 	BorderForeground(lipgloss.Color("240"))
 
 type model struct {
-	peers map[string]participant
-	cr    *ChatRoom
+	participants map[string]participant
+	cr           *ChatRoom
 
 	menu   list.Model
 	choice string
@@ -26,7 +27,10 @@ type model struct {
 	description     textinput.Model
 	editDescription bool
 	showDescription bool
+
+	showVotes bool
 }
+
 type tickMsg time.Time
 type receiveMsg *ChatMessage
 
@@ -39,6 +43,7 @@ func (m model) Init() tea.Cmd {
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -46,28 +51,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.editDescription {
 				m.updateDescription(true)
 			} else {
-				i, ok := m.menu.SelectedItem().(item)
-				if ok {
-					m.choice = string(i)
-				}
-
-				if m.choice == OPTION_SET_DESCRIPTION {
-					m.editDescription = true
-					m.description.Focus()
-				}
+				m.handleMenuEvents()
 			}
 			return m, nil
 		case "q", "ctrl+c":
 			return m, tea.Quit
 		}
 	case receiveMsg:
-		switch msg.MessageType {
-		case Heartbeat:
-			m.updateParticipants(msg)
-		case SetDescription:
-			m.description.SetValue(msg.Message)
-			m.updateDescription(false)
-		}
+		m.handleNewMessage(msg)
 		return m, m.receiveMsgCmd()
 	case tickMsg:
 		m.sendHeartbeat()
@@ -84,27 +75,26 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmdList
 }
 
-func (m *model) updateDescription(sendDescription bool) {
-	m.showDescription = m.description.Value() != ""
-	m.editDescription = false
-	m.description.Blur()
-	if !sendDescription {
-		return
-	}
-	m.sendDescription()
-}
-
 func (m model) View() string {
 	header := fmt.Sprintf("\n  Welcome to <%s>\n", m.cr.roomName)
 	t := m.table.View()
-	tableRendered := fmt.Sprintf("%s\n", baseStyle.Render(t))
+	tableRendered := baseStyle.Render(t)
 
 	descriptionRendered := "> description not set <"
 	if m.editDescription || m.showDescription {
 		descriptionRendered = m.description.View()
 	}
-	tableAndDescriptionTitle := lipgloss.JoinVertical(lipgloss.Center, tableRendered, descriptionRendered)
-	return header + "\n" + lipgloss.JoinHorizontal(lipgloss.Top, tableAndDescriptionTitle, m.menu.View())
+
+	averageString := ""
+	if m.showVotes {
+		avg := m.calculateVotesAverage()
+		averageString = fmt.Sprintf("Average: %s\n", strconv.FormatFloat(float64(avg), 'f', 2, 32))
+	}
+
+	leftSize := lipgloss.JoinVertical(lipgloss.Center, tableRendered)
+	leftSize = lipgloss.JoinVertical(lipgloss.Center, leftSize, averageString)
+	leftSize = lipgloss.JoinVertical(lipgloss.Center, leftSize, descriptionRendered)
+	return header + "\n" + lipgloss.JoinHorizontal(lipgloss.Top, leftSize, m.menu.View())
 }
 
 func (m *model) sendHeartbeat() tea.Cmd {
@@ -115,25 +105,10 @@ func (m *model) sendHeartbeat() tea.Cmd {
 	return nil
 }
 
-func (m *model) sendDescription() tea.Cmd {
-	err := m.cr.Publish(SetDescription, m.description.Value())
-	if err != nil {
-		panic(err)
-	}
-	return nil
-}
-
 func tickCmd() tea.Cmd {
-	return tea.Tick(time.Second*1, func(t time.Time) tea.Msg {
+	return tea.Tick(time.Millisecond*500, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
-}
-
-func (m model) receiveMsgCmd() tea.Cmd {
-	return func() tea.Msg {
-		msg := <-m.cr.Messages
-		return receiveMsg(msg)
-	}
 }
 
 type EstimatorUI struct {
@@ -147,7 +122,7 @@ func NewEstimationUI(cr *ChatRoom) *EstimatorUI {
 		table:       NewTable(),
 		description: NewDescriptionInput(),
 		cr:          cr,
-		peers: map[string]participant{
+		participants: map[string]participant{
 			shortID(cr.self): {
 				id:   cr.self,
 				nick: cr.nick + " (you)",
@@ -165,4 +140,9 @@ func NewEstimationUI(cr *ChatRoom) *EstimatorUI {
 func (ui *EstimatorUI) Run() error {
 	_, err := ui.p.Run()
 	return err
+}
+
+func (m *model) self() *participant {
+	peer := m.participants[shortID(m.cr.self)]
+	return &peer
 }

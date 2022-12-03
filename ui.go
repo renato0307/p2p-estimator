@@ -2,30 +2,33 @@ package main
 
 import (
 	"fmt"
-	"sort"
 	"time"
 
+	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/table"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 var baseStyle = lipgloss.NewStyle().
 	BorderStyle(lipgloss.NormalBorder()).
 	BorderForeground(lipgloss.Color("240"))
 
-type participant struct {
-	id              peer.ID
-	nick            string
-	heartbeatMisses int
-}
-
 type model struct {
 	peers map[string]participant
-	table table.Model
 	cr    *ChatRoom
+
+	menu   list.Model
+	choice string
+	table  table.Model
+
+	description     textinput.Model
+	editDescription bool
+	showDescription bool
 }
+type tickMsg time.Time
+type receiveMsg *ChatMessage
 
 func (m model) Init() tea.Cmd {
 	return tea.Batch(
@@ -39,80 +42,92 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
+		case "enter":
+			if m.editDescription {
+				m.updateDescription(true)
+			} else {
+				i, ok := m.menu.SelectedItem().(item)
+				if ok {
+					m.choice = string(i)
+				}
+
+				if m.choice == OPTION_SET_DESCRIPTION {
+					m.editDescription = true
+					m.description.Focus()
+				}
+			}
+			return m, nil
 		case "q", "ctrl+c":
 			return m, tea.Quit
 		}
 	case receiveMsg:
-		m.updatePeer(msg)
+		switch msg.MessageType {
+		case Heartbeat:
+			m.updateParticipants(msg)
+		case SetDescription:
+			m.description.SetValue(msg.Message)
+			m.updateDescription(false)
+		}
 		return m, m.receiveMsgCmd()
 	case tickMsg:
 		m.sendHeartbeat()
-		m.refreshPeers()
-		m.table.SetHeight(len(m.peers))
-		m.table, cmd = m.table.Update(msg)
+		cmd = m.updateParticipantsTable(msg)
 		return m, tea.Batch(tickCmd(), cmd)
 	}
-	m.table, cmd = m.table.Update(msg)
-	return m, cmd
+
+	if m.editDescription {
+		m.description, cmd = m.description.Update(msg)
+		return m, cmd
+	}
+
+	cmdList := m.updateMenu(msg)
+	return m, cmdList
+}
+
+func (m *model) updateDescription(sendDescription bool) {
+	m.showDescription = m.description.Value() != ""
+	m.editDescription = false
+	m.description.Blur()
+	if !sendDescription {
+		return
+	}
+	m.sendDescription()
 }
 
 func (m model) View() string {
+	header := fmt.Sprintf("\n  Welcome to <%s>\n", m.cr.roomName)
 	t := m.table.View()
-	return fmt.Sprintf("\n  Welcome to <%s>\n%s\n", m.cr.roomName, baseStyle.Render(t))
-}
+	tableRendered := fmt.Sprintf("%s\n", baseStyle.Render(t))
 
-func (m *model) updatePeer(msg *ChatMessage) {
-	sid := shortID(peer.ID(msg.SenderID))
-	m.peers[sid] = participant{
-		id:              peer.ID(msg.SenderID),
-		nick:            msg.SenderNick,
-		heartbeatMisses: 0,
+	descriptionRendered := "> description not set <"
+	if m.editDescription || m.showDescription {
+		descriptionRendered = m.description.View()
 	}
-}
-
-func (m *model) refreshPeers() {
-	rows := []table.Row{}
-	for k, p := range m.peers {
-		if p.id == m.cr.self {
-			continue
-		}
-
-		if p.heartbeatMisses > 5 {
-			delete(m.peers, k)
-			continue
-		}
-		rows = append(rows, table.Row{p.nick, "-"})
-		p.heartbeatMisses++
-		m.peers[k] = p
-	}
-
-	sort.Slice(rows, func(i, j int) bool {
-		return rows[i][0] < rows[j][0]
-	})
-
-	self := table.Row{m.peers[shortID(m.cr.self)].nick, "-"}
-	rowSelf := []table.Row{self}
-	rows = append(rowSelf, rows...)
-	m.table.SetRows(rows)
+	tableAndDescriptionTitle := lipgloss.JoinVertical(lipgloss.Center, tableRendered, descriptionRendered)
+	return header + "\n" + lipgloss.JoinHorizontal(lipgloss.Top, tableAndDescriptionTitle, m.menu.View())
 }
 
 func (m *model) sendHeartbeat() tea.Cmd {
-	err := m.cr.Publish("heartbeat")
+	err := m.cr.Publish(Heartbeat, "")
 	if err != nil {
 		panic(err)
 	}
 	return nil
 }
 
-type tickMsg time.Time
+func (m *model) sendDescription() tea.Cmd {
+	err := m.cr.Publish(SetDescription, m.description.Value())
+	if err != nil {
+		panic(err)
+	}
+	return nil
+}
 
 func tickCmd() tea.Cmd {
 	return tea.Tick(time.Second*1, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
 }
-
-type receiveMsg *ChatMessage
 
 func (m model) receiveMsgCmd() tea.Cmd {
 	return func() tea.Msg {
@@ -127,35 +142,11 @@ type EstimatorUI struct {
 }
 
 func NewEstimationUI(cr *ChatRoom) *EstimatorUI {
-	columns := []table.Column{
-		{Title: "Today we have with us", Width: 50},
-		{Title: "Estimation", Width: 10},
-	}
-
-	rows := []table.Row{}
-
-	t := table.New(
-		table.WithColumns(columns),
-		table.WithRows(rows),
-		table.WithFocused(false),
-		table.WithHeight(1),
-	)
-
-	s := table.DefaultStyles()
-	s.Header = s.Header.
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("240")).
-		BorderBottom(true).
-		Bold(false)
-	s.Selected = s.Selected.
-		Foreground(lipgloss.Color("229")).
-		Background(lipgloss.Color("57")).
-		Bold(false)
-	t.SetStyles(s)
-
 	m := model{
-		table: t,
-		cr:    cr,
+		menu:        NewMenu(),
+		table:       NewTable(),
+		description: NewDescriptionInput(),
+		cr:          cr,
 		peers: map[string]participant{
 			shortID(cr.self): {
 				id:   cr.self,

@@ -29,11 +29,19 @@ type ChatRoom struct {
 	nick     string
 }
 
+type ChatMessageType string
+
+const (
+	Heartbeat      ChatMessageType = "heartbeat"
+	SetDescription ChatMessageType = "set-description"
+)
+
 // ChatMessage gets converted to/from JSON and sent in the body of pubsub messages.
 type ChatMessage struct {
-	Message    string
-	SenderID   string
-	SenderNick string
+	MessageType ChatMessageType
+	Message     string
+	SenderID    string
+	SenderNick  string
 }
 
 // JoinChatRoom tries to subscribe to the PubSub topic for the room name, returning
@@ -68,11 +76,12 @@ func JoinChatRoom(ctx context.Context, ps *pubsub.PubSub, selfID peer.ID, nickna
 }
 
 // Publish sends a message to the pubsub topic.
-func (cr *ChatRoom) Publish(message string) error {
+func (cr *ChatRoom) Publish(messageType ChatMessageType, message string) error {
 	m := ChatMessage{
-		Message:    message,
-		SenderID:   cr.self.Pretty(),
-		SenderNick: cr.nick,
+		MessageType: messageType,
+		Message:     message,
+		SenderID:    cr.self.Pretty(),
+		SenderNick:  cr.nick,
 	}
 	msgBytes, err := json.Marshal(m)
 	if err != nil {

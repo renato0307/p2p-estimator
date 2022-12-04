@@ -100,14 +100,6 @@ func (m model) View() string {
 	return header + "\n" + lipgloss.JoinHorizontal(lipgloss.Top, leftSize, m.menu.View())
 }
 
-func (m *model) sendHeartbeat() tea.Cmd {
-	err := m.cr.Publish(chatroom.Heartbeat, "")
-	if err != nil {
-		panic(err)
-	}
-	return nil
-}
-
 func tickCmd() tea.Cmd {
 	return tea.Tick(time.Millisecond*500, func(t time.Time) tea.Msg {
 		return tickMsg(t)

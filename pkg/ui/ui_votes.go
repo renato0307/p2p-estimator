@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"log"
+
 	"github.com/renato0307/p2p-estimator/pkg/chatroom"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -44,6 +46,8 @@ func (m *model) updateVote(pid peer.ID, vote string, sendMsg bool) tea.Cmd {
 	if err != nil {
 		panic(err)
 	}
+
+	log.Printf("sent vote 🖍")
 	return nil
 }
 
@@ -62,6 +66,8 @@ func (m *model) clearVotes(sendMsg bool) tea.Cmd {
 	if err != nil {
 		panic(err)
 	}
+
+	log.Printf("sent clear vote 🗑")
 	return nil
 }
 

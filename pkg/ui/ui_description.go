@@ -1,6 +1,8 @@
-package main
+package ui
 
 import (
+	"github.com/renato0307/p2p-estimator/pkg/chatroom"
+
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -25,7 +27,7 @@ func (m *model) updateDescription(sendDescription bool) {
 }
 
 func (m *model) sendDescription() tea.Cmd {
-	err := m.cr.Publish(SetDescription, m.description.Value())
+	err := m.cr.Publish(chatroom.SetDescription, m.description.Value())
 	if err != nil {
 		panic(err)
 	}

@@ -1,15 +1,18 @@
-package main
+package ui
 
 import (
 	"fmt"
 	"strconv"
 	"time"
 
+	"github.com/renato0307/p2p-estimator/pkg/chatroom"
+
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 var baseStyle = lipgloss.NewStyle().
@@ -18,7 +21,7 @@ var baseStyle = lipgloss.NewStyle().
 
 type model struct {
 	participants map[string]participant
-	cr           *ChatRoom
+	cr           *chatroom.ChatRoom
 
 	menu   list.Model
 	choice string
@@ -32,7 +35,7 @@ type model struct {
 }
 
 type tickMsg time.Time
-type receiveMsg *ChatMessage
+type receiveMsg *chatroom.ChatMessage
 
 func (m model) Init() tea.Cmd {
 	return tea.Batch(
@@ -76,7 +79,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	header := fmt.Sprintf("\n  Welcome to <%s>\n", m.cr.roomName)
+	header := fmt.Sprintf("\n  Welcome to <%s>\n", m.cr.RoomName)
 	t := m.table.View()
 	tableRendered := baseStyle.Render(t)
 
@@ -98,7 +101,7 @@ func (m model) View() string {
 }
 
 func (m *model) sendHeartbeat() tea.Cmd {
-	err := m.cr.Publish(Heartbeat, "")
+	err := m.cr.Publish(chatroom.Heartbeat, "")
 	if err != nil {
 		panic(err)
 	}
@@ -116,16 +119,16 @@ type EstimatorUI struct {
 	m *model
 }
 
-func NewEstimationUI(cr *ChatRoom) *EstimatorUI {
+func NewEstimationUI(cr *chatroom.ChatRoom) *EstimatorUI {
 	m := model{
 		menu:        NewMenu(),
 		table:       NewTable(),
 		description: NewDescriptionInput(),
 		cr:          cr,
 		participants: map[string]participant{
-			shortID(cr.self): {
-				id:   cr.self,
-				nick: cr.nick + " (you)",
+			shortID(cr.Self): {
+				id:   cr.Self,
+				nick: cr.Nick + " (you)",
 			},
 		},
 	}
@@ -143,6 +146,12 @@ func (ui *EstimatorUI) Run() error {
 }
 
 func (m *model) self() *participant {
-	peer := m.participants[shortID(m.cr.self)]
+	peer := m.participants[shortID(m.cr.Self)]
 	return &peer
+}
+
+// shortID returns the last 8 chars of a base58-encoded peer id.
+func shortID(p peer.ID) string {
+	pretty := p.Pretty()
+	return pretty[len(pretty)-8:]
 }

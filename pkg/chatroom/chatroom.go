@@ -1,4 +1,4 @@
-package main
+package chatroom
 
 import (
 	"context"
@@ -24,9 +24,9 @@ type ChatRoom struct {
 	topic *pubsub.Topic
 	sub   *pubsub.Subscription
 
-	roomName string
-	self     peer.ID
-	nick     string
+	RoomName string
+	Self     peer.ID
+	Nick     string
 }
 
 type ChatMessageType string
@@ -67,9 +67,9 @@ func JoinChatRoom(ctx context.Context, ps *pubsub.PubSub, selfID peer.ID, nickna
 		ps:       ps,
 		topic:    topic,
 		sub:      sub,
-		self:     selfID,
-		nick:     nickname,
-		roomName: roomName,
+		Self:     selfID,
+		Nick:     nickname,
+		RoomName: roomName,
 		Messages: make(chan *ChatMessage, ChatRoomBufSize),
 	}
 
@@ -83,8 +83,8 @@ func (cr *ChatRoom) Publish(messageType ChatMessageType, message string) error {
 	m := ChatMessage{
 		MessageType: messageType,
 		Message:     message,
-		SenderID:    cr.self.Pretty(),
-		SenderNick:  cr.nick,
+		SenderID:    cr.Self.Pretty(),
+		SenderNick:  cr.Nick,
 	}
 	msgBytes, err := json.Marshal(m)
 	if err != nil {
@@ -94,7 +94,7 @@ func (cr *ChatRoom) Publish(messageType ChatMessageType, message string) error {
 }
 
 func (cr *ChatRoom) ListPeers() []peer.ID {
-	return cr.ps.ListPeers(topicName(cr.roomName))
+	return cr.ps.ListPeers(topicName(cr.RoomName))
 }
 
 // readLoop pulls messages from the pubsub topic and pushes them onto the Messages channel.
@@ -106,7 +106,7 @@ func (cr *ChatRoom) readLoop() {
 			return
 		}
 		// only forward messages delivered by others
-		if msg.ReceivedFrom == cr.self {
+		if msg.ReceivedFrom == cr.Self {
 			continue
 		}
 		cm := new(ChatMessage)

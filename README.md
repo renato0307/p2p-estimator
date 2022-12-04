@@ -8,7 +8,7 @@ It uses [go-libp2p](https://github.com/libp2p/go-libp2p).
 
 ## Demo
 
-![Demo](demo.gif)
+![Demo](docs/demo.gif)
 
 ## Limitations
 

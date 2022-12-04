@@ -1,6 +1,8 @@
-package main
+package ui
 
 import (
+	"github.com/renato0307/p2p-estimator/pkg/chatroom"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
@@ -38,7 +40,7 @@ func (m *model) updateVote(pid peer.ID, vote string, sendMsg bool) tea.Cmd {
 		return nil
 	}
 
-	err := m.cr.Publish(SendVote, vote)
+	err := m.cr.Publish(chatroom.SendVote, vote)
 	if err != nil {
 		panic(err)
 	}
@@ -56,7 +58,7 @@ func (m *model) clearVotes(sendMsg bool) tea.Cmd {
 		return nil
 	}
 
-	err := m.cr.Publish(ClearVotes, "")
+	err := m.cr.Publish(chatroom.ClearVotes, "")
 	if err != nil {
 		panic(err)
 	}
@@ -70,7 +72,7 @@ func (m *model) displayVotes(sendMsg bool) tea.Cmd {
 		return nil
 	}
 
-	err := m.cr.Publish(ShowVotes, "")
+	err := m.cr.Publish(chatroom.ShowVotes, "")
 	if err != nil {
 		panic(err)
 	}

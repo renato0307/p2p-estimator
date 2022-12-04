@@ -1,22 +1,24 @@
-package main
+package ui
 
 import (
+	"github.com/renato0307/p2p-estimator/pkg/chatroom"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 func (m *model) handleNewMessage(msg receiveMsg) {
 	switch msg.MessageType {
-	case Heartbeat:
+	case chatroom.Heartbeat:
 		m.updateParticipants(msg)
-	case SetDescription:
+	case chatroom.SetDescription:
 		m.description.SetValue(msg.Message)
 		m.updateDescription(false)
-	case SendVote:
+	case chatroom.SendVote:
 		m.updateVote(peer.ID(msg.SenderID), msg.Message, false)
-	case ClearVotes:
+	case chatroom.ClearVotes:
 		m.clearVotes(false)
-	case ShowVotes:
+	case chatroom.ShowVotes:
 		m.displayVotes(false)
 	}
 }

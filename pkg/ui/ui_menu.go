@@ -1,4 +1,4 @@
-package main
+package ui
 
 import (
 	"fmt"
@@ -90,7 +90,7 @@ func (m *model) handleMenuEvents() {
 		m.displayVotes(true)
 	case OPTION_UPDATE_JIRA:
 	default:
-		m.updateVote(m.cr.self, m.choice, true)
+		m.updateVote(m.cr.Self, m.choice, true)
 	}
 }
 

@@ -1,4 +1,4 @@
-package main
+package ui
 
 import (
 	"fmt"
@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/renato0307/p2p-estimator/pkg/chatroom"
 )
 
 type participant struct {
@@ -46,7 +47,7 @@ func NewTable() table.Model {
 	return t
 }
 
-func (m *model) updateParticipants(msg *ChatMessage) {
+func (m *model) updateParticipants(msg *chatroom.ChatMessage) {
 	sid := shortID(peer.ID(msg.SenderID))
 	m.participants[sid] = participant{
 		id:              peer.ID(msg.SenderID),
@@ -59,7 +60,7 @@ func (m *model) updateParticipants(msg *ChatMessage) {
 func (m *model) refreshPeers() {
 	rows := []table.Row{}
 	for k, p := range m.participants {
-		if p.id == m.cr.self {
+		if p.id == m.cr.Self {
 			continue
 		}
 		if p.heartbeatMisses > 15 {
